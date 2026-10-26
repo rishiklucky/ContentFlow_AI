@@ -9,7 +9,7 @@ import Badge from '../../components/common/Badge';
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
+  const { login, loginWithToken } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -104,9 +104,11 @@ export default function LoginPage() {
                 try {
                   setErrorMessage('');
                   setIsSubmitting(true);
-                  await authService.initiateNeonGoogleAuth((token) => {
-                    login(token);
-                    navigate('/dashboard');
+                  await authService.initiateNeonGoogleAuth(async (token) => {
+                    if (token) {
+                      await loginWithToken(token);
+                      navigate('/dashboard', { replace: true });
+                    }
                   });
                 } catch (err) {
                   setErrorMessage(err.message || 'Google authentication with Neon Auth failed.');

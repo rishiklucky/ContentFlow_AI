@@ -39,8 +39,24 @@ export function AuthProvider({ children }) {
     return () => { isMounted = false; };
   }, []);
 
-  const login = async (email, password) => {
-    const data = await authService.login({ email, password });
+  const loginWithToken = async (authToken) => {
+    localStorage.setItem('cf_auth_token', authToken);
+    setToken(authToken);
+    try {
+      const userData = await authService.getProfile();
+      setUser(userData);
+      return userData;
+    } catch {
+      return null;
+    }
+  };
+
+  const login = async (emailOrToken, password) => {
+    // If called with an OAuth JWT token directly
+    if (!password && typeof emailOrToken === 'string' && emailOrToken.includes('.')) {
+      return await loginWithToken(emailOrToken);
+    }
+    const data = await authService.login({ email: emailOrToken, password });
     localStorage.setItem('cf_auth_token', data.access_token);
     setToken(data.access_token);
     setUser(data.user);
@@ -71,6 +87,7 @@ export function AuthProvider({ children }) {
     loading,
     isAuthenticated: !!user,
     login,
+    loginWithToken,
     register,
     logout,
   };

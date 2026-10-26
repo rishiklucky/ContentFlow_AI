@@ -7,7 +7,7 @@ import Button from '../../components/common/Button';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, loginWithToken } = useAuth();
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -98,9 +98,11 @@ export default function RegisterPage() {
                 try {
                   setErrorMessage('');
                   setIsSubmitting(true);
-                  await authService.initiateNeonGoogleAuth((token) => {
-                    login(token);
-                    navigate('/dashboard');
+                  await authService.initiateNeonGoogleAuth(async (token) => {
+                    if (token) {
+                      await loginWithToken(token);
+                      navigate('/dashboard', { replace: true });
+                    }
                   });
                 } catch (err) {
                   setErrorMessage(err.message || 'Google authentication with Neon Auth failed.');
