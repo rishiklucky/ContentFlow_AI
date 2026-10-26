@@ -1,0 +1,71 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing and coverage
+coverage/
+*.lcov
+.nyc_output
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Production build outputs
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Environment and secrets (CRITICAL: Never commit .env files)
+.env
+.env.*
+*.env
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+*.pem
+*.key
+*.cert
+
+# Python and virtual environments
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Databases & local user storage
+*.sqlite
+*.sqlite3
+*.db
+chroma_db/
+**/chroma_db/
+uploads/
+**/uploads/
+**/uploads/**
+
+# IDE & OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Internal prompt & workspace instructions
+common_instructions.*
+project_rules.md
+stitch_contentflow_ai_platform/
+scratch/

@@ -1,0 +1,349 @@
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from app.core.database import get_db
+from app.core.security import get_password_hash, verify_password, create_access_token
+from app.api.deps import get_current_user
+from app.models.user import User
+from app.schemas.user import UserCreate, UserLogin, UserResponse, TokenResponse, MessageResponse, SocialAuthRequest
+
+router = APIRouter()
+
+
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+def register(user_in: UserCreate, db: Session = Depends(get_db)):
+    """
+    Register a new user account with hashed password and return access token.
+    """
+    # Normalize email to lowercase
+    normalized_email = user_in.email.strip().lower()
+
+    # Check for duplicate user
+    existing_user = db.query(User).filter(User.email == normalized_email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email address already exists."
+        )
+
+    # Hash the password
+    hashed_pwd = get_password_hash(user_in.password)
+
+    # Create new user record
+    new_user = User(
+        email=normalized_email,
+        full_name=user_in.full_name.strip() if user_in.full_name else None,
+        hashed_password=hashed_pwd,
+        is_active=True,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    # Generate token
+    token = create_access_token(subject=new_user.id)
+
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user=UserResponse.from_orm(new_user)
+    )
+
+
+@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
+def login(login_data: UserLogin, db: Session = Depends(get_db)):
+    """
+    Authenticate user with email and password, returning JWT access token.
+    """
+    normalized_email = login_data.email.strip().lower()
+
+    user = db.query(User).filter(User.email == normalized_email).first()
+    if not user or not verify_password(login_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated."
+        )
+
+    token = create_access_token(subject=user.id)
+
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user=UserResponse.from_orm(user)
+    )
+
+
+@router.post("/logout", response_model=MessageResponse, status_code=status.HTTP_200_OK)
+def logout(current_user: User = Depends(get_current_user)):
+    """
+    Logout session. Tokens are stateless; client clears local storage/cookies.
+    """
+    return MessageResponse(message="Successfully logged out.")
+
+
+@router.get("/me", response_model=UserResponse, status_code=status.HTTP_200_OK)
+def get_current_user_profile(current_user: User = Depends(get_current_user)):
+    """
+    Return currently authenticated user profile. Protected endpoint.
+    """
+    return current_user
+
+
+@router.post("/social-login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
+def social_login(social_in: SocialAuthRequest, db: Session = Depends(get_db)):
+    """
+    Authenticate or create a user via Neon Auth Google OAuth.
+    """
+    import secrets
+    normalized_email = social_in.email.strip().lower()
+
+    user = db.query(User).filter(User.email == normalized_email).first()
+
+    if not user:
+        # Create user account linked to Google OAuth
+        random_pwd = secrets.token_urlsafe(32)
+        hashed_pwd = get_password_hash(random_pwd)
+        user = User(
+            email=normalized_email,
+            full_name=social_in.full_name.strip() if social_in.full_name else None,
+            hashed_password=hashed_pwd,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    else:
+        # If user exists and missing full_name, update it
+        if not user.full_name and social_in.full_name:
+            user.full_name = social_in.full_name.strip()
+            db.commit()
+            db.refresh(user)
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated."
+        )
+
+    token = create_access_token(subject=user.id)
+
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user=UserResponse.from_orm(user)
+    )
+
+
+@router.get("/google/url")
+def get_neon_google_auth_url(callback_url: Optional[str] = None):
+    """
+    Obtains the Google OAuth initiation URL from Neon Auth server-to-server.
+    Routes callback through the backend endpoint /api/v1/auth/google/callback
+    to bypass cross-domain cookie blocking in modern browsers.
+    """
+    import socket
+    import ssl
+    import json
+    import urllib.parse
+    from app.core.database import _resolve_host_fallback
+
+    # Use backend callback so that session is captured reliably server-side
+    backend_callback = "http://localhost:8000/api/v1/auth/google/callback"
+
+    neon_host = "ep-aged-frog-b3927eke.neonauth.c-4.ap-southeast-1.aws.neon.tech"
+    ip = _resolve_host_fallback(neon_host) or "47.130.56.154"
+
+    try:
+        ctx = ssl.create_default_context()
+        s = ctx.wrap_socket(socket.socket(), server_hostname=neon_host)
+        s.connect((ip, 443))
+
+        payload = json.dumps({"provider": "google", "callbackURL": backend_callback}).encode("utf-8")
+        req = (
+            f"POST /neondb/auth/sign-in/social HTTP/1.1\r\n"
+            f"Host: {neon_host}\r\n"
+            f"Content-Type: application/json\r\n"
+            f"Content-Length: {len(payload)}\r\n"
+            f"User-Agent: ContentFlowAI/1.0\r\n"
+            f"Connection: close\r\n\r\n"
+        ).encode("utf-8") + payload
+
+        s.sendall(req)
+        response = s.recv(4096).decode("utf-8", errors="ignore")
+        s.close()
+
+        body = response[response.find("{"):]
+        data = json.loads(body)
+        
+        if "url" in data:
+            return {"url": data["url"]}
+        
+        err_msg = data.get("error") or data.get("message") or "Unknown error from Neon Auth"
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err_msg)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Could not connect to Neon Auth server: {str(e)}"
+        )
+
+
+@router.get("/google/callback")
+def google_oauth_callback(
+    neon_auth_session_verifier: Optional[str] = None,
+    error: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Handles the redirect from Neon Auth after Google authentication completes.
+    Reads user/session directly from neon_auth schema in PostgreSQL,
+    synchronizes with public.users table, issues a JWT token, and redirects
+    to frontend /auth/callback with the token.
+    """
+    import secrets
+    import urllib.parse
+
+    frontend_base = "http://localhost:5173"
+
+    if error:
+        return RedirectResponse(url=f"{frontend_base}/login?error={urllib.parse.quote(error)}", status_code=status.HTTP_302_FOUND)
+
+    try:
+        # Fetch the latest active session from neon_auth schema
+        sql = text("""
+            SELECT 
+                s.id as session_id,
+                s."userId" as user_id,
+                s."createdAt" as session_created_at,
+                u.email,
+                u.name,
+                u.image
+            FROM neon_auth.session s
+            JOIN neon_auth.user u ON s."userId" = u.id
+            WHERE s."expiresAt" > NOW()
+            ORDER BY s."createdAt" DESC
+            LIMIT 1
+        """)
+        session_row = db.execute(sql).fetchone()
+
+        if not session_row:
+            return RedirectResponse(url=f"{frontend_base}/login?error=no_active_session", status_code=status.HTTP_302_FOUND)
+
+        normalized_email = session_row.email.strip().lower()
+        full_name = session_row.name.strip() if session_row.name else None
+
+        user = db.query(User).filter(User.email == normalized_email).first()
+        if not user:
+            random_pwd = secrets.token_urlsafe(32)
+            hashed_pwd = get_password_hash(random_pwd)
+            user = User(
+                email=normalized_email,
+                full_name=full_name,
+                hashed_password=hashed_pwd,
+                is_active=True,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        else:
+            if not user.full_name and full_name:
+                user.full_name = full_name
+                db.commit()
+                db.refresh(user)
+
+        if not user.is_active:
+            return RedirectResponse(url=f"{frontend_base}/login?error=account_deactivated", status_code=status.HTTP_302_FOUND)
+
+        # Generate JWT token
+        token = create_access_token(subject=user.id)
+        return RedirectResponse(url=f"{frontend_base}/auth/callback?token={token}", status_code=status.HTTP_302_FOUND)
+
+    except Exception as e:
+        err_msg = urllib.parse.quote(str(e))
+        return RedirectResponse(url=f"{frontend_base}/login?error={err_msg}", status_code=status.HTTP_302_FOUND)
+
+
+@router.post("/google/verify-session", response_model=TokenResponse)
+def verify_neon_session(db: Session = Depends(get_db)):
+    """
+    Direct session verification endpoint called from frontend AuthCallbackPage
+    as a secondary fallback if query parameter token is not present.
+    """
+    import secrets
+
+    sql = text("""
+        SELECT 
+            s.id as session_id,
+            s."userId" as user_id,
+            s."createdAt" as session_created_at,
+            u.email,
+            u.name,
+            u.image
+        FROM neon_auth.session s
+        JOIN neon_auth.user u ON s."userId" = u.id
+        WHERE s."expiresAt" > NOW()
+        ORDER BY s."createdAt" DESC
+        LIMIT 1
+    """)
+    session_row = db.execute(sql).fetchone()
+
+    if not session_row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active Google authentication session found in Neon Auth."
+        )
+
+    normalized_email = session_row.email.strip().lower()
+    full_name = session_row.name.strip() if session_row.name else None
+
+    user = db.query(User).filter(User.email == normalized_email).first()
+    if not user:
+        random_pwd = secrets.token_urlsafe(32)
+        hashed_pwd = get_password_hash(random_pwd)
+        user = User(
+            email=normalized_email,
+            full_name=full_name,
+            hashed_password=hashed_pwd,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    else:
+        if not user.full_name and full_name:
+            user.full_name = full_name
+            db.commit()
+            db.refresh(user)
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated."
+        )
+
+    token = create_access_token(subject=user.id)
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user=UserResponse.from_orm(user)
+    )
+
+
+@router.get("/google")
+def redirect_to_google():
+    """
+    Directly redirects the user's browser to the Google OAuth consent screen via Neon Auth.
+    """
+    result = get_neon_google_auth_url()
+    return RedirectResponse(url=result["url"])

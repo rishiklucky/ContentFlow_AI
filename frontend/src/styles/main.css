@@ -1,0 +1,234 @@
+/* ==========================================================================
+   ContentFlow AI — Main Application Layout & Responsive Media Queries
+   ========================================================================== */
+
+@import 'bootstrap/dist/css/bootstrap.min.css';
+@import './variables.css';
+@import './design-system.css';
+
+/* Base Reset & Global Styles */
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--cf-surface-canvas);
+  color: var(--cf-ink-primary);
+  font-family: var(--cf-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+::selection {
+  background-color: var(--cf-ink-primary);
+  color: var(--cf-surface-canvas);
+}
+
+/* Links */
+a {
+  color: var(--cf-accent-prussian);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Main App Shell Layout */
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--cf-surface-canvas);
+}
+
+/* Telemetry Topbar */
+.telemetry-topbar {
+  background-color: var(--cf-surface-deep);
+  border-bottom: 1px solid var(--cf-border-hairline);
+  padding: 0.35rem 1rem;
+  font-family: var(--cf-font-mono);
+  font-size: 0.6875rem;
+  color: var(--cf-ink-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  z-index: 1020;
+}
+
+/* Master Header */
+.app-header {
+  height: var(--cf-header-height);
+  background-color: var(--cf-surface-canvas);
+  border-bottom: 1px solid var(--cf-border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 1010;
+}
+
+/* Main Layout Grid (Sidebar + Content) */
+.app-body-container {
+  display: flex;
+  flex: 1;
+  position: relative;
+  min-height: calc(100vh - var(--cf-header-height) - var(--cf-subruler-height));
+}
+
+/* Sidebar Desktop */
+.app-sidebar {
+  width: var(--cf-sidebar-width);
+  background-color: var(--cf-surface-deep);
+  border-right: 1px solid var(--cf-border-strong);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: width 0.2s ease;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  font-family: var(--cf-font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--cf-ink-secondary);
+  border-bottom: 1px solid var(--cf-border-hairline);
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-nav-item:hover {
+  background-color: var(--cf-surface-canvas);
+  color: var(--cf-ink-primary);
+  text-decoration: none;
+}
+
+.sidebar-nav-item.active {
+  background-color: var(--cf-ink-primary);
+  color: var(--cf-ink-inverse);
+  box-shadow: 2px 0 0 var(--cf-accent-vermilion);
+}
+
+.sidebar-nav-item.active .badge-pill-indicator {
+  background-color: var(--cf-accent-vermilion);
+  color: #FFFFFF;
+}
+
+/* Main Content Area */
+.app-main-content {
+  flex: 1;
+  padding: 1.5rem;
+  background-color: var(--cf-surface-canvas);
+  overflow-y: auto;
+  max-width: 100%;
+}
+
+/* Mobile Offcanvas Sidebar Backdrop */
+.mobile-sidebar-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(12, 16, 23, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 1040;
+}
+
+.mobile-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 280px;
+  max-width: 85vw;
+  height: 100vh;
+  background-color: var(--cf-surface-deep);
+  border-right: 2px solid var(--cf-ink-primary);
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 4px 0px 0px rgba(12, 16, 23, 0.15);
+}
+
+.mobile-sidebar.open {
+  transform: translateX(0);
+}
+
+/* Touch Friendly Targets (>= 44px) */
+.touch-target {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Responsive Breakpoints & Viewport Fine-Tuning */
+/* Mobile (360px & 390px) */
+@media (max-width: 767.98px) {
+  .app-sidebar {
+    display: none;
+  }
+  
+  .app-main-content {
+    padding: 1rem 0.75rem;
+  }
+
+  .telemetry-topbar {
+    padding: 0.35rem 0.75rem;
+  }
+
+  .telemetry-optional-item {
+    display: none;
+  }
+
+  .heading-display {
+    font-size: 1.75rem;
+    line-height: 1.2;
+  }
+
+  .cf-stat-value {
+    font-size: 1.35rem;
+  }
+
+  .cf-btn-responsive {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+}
+
+/* Tablet (768px & 1024px) */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .app-sidebar {
+    width: 200px;
+  }
+
+  .sidebar-nav-item {
+    padding: 0.65rem 0.85rem;
+    font-size: 0.7rem;
+  }
+
+  .app-main-content {
+    padding: 1.25rem;
+  }
+}
+
+/* Desktop (1280px & 1440px) */
+@media (min-width: 1024px) {
+  .app-sidebar {
+    width: var(--cf-sidebar-width);
+  }
+
+  .app-main-content {
+    padding: 2rem;
+  }
+}

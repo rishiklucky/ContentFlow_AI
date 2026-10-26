@@ -1,0 +1,356 @@
+/* ==========================================================================
+   ContentFlow AI — Foundational Component & Utility Classes
+   ========================================================================== */
+
+/* Typography */
+.font-serif {
+  font-family: var(--cf-font-serif);
+}
+
+.font-mono {
+  font-family: var(--cf-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.font-sans {
+  font-family: var(--cf-font-sans);
+}
+
+.heading-display {
+  font-family: var(--cf-font-serif);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--cf-ink-primary);
+}
+
+.heading-section {
+  font-family: var(--cf-font-mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cf-ink-primary);
+}
+
+.telemetry-meta {
+  font-family: var(--cf-font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--cf-ink-muted);
+}
+
+/* Hairline Dividers */
+.hairline-border {
+  border: 1px solid var(--cf-border-hairline) !important;
+}
+
+.hairline-border-strong {
+  border: 1px solid var(--cf-border-strong) !important;
+}
+
+.hairline-border-dark {
+  border: 1px solid var(--cf-border-dark) !important;
+}
+
+.hairline-b {
+  border-bottom: 1px solid var(--cf-border-hairline) !important;
+}
+
+.hairline-t {
+  border-top: 1px solid var(--cf-border-hairline) !important;
+}
+
+.hairline-r {
+  border-right: 1px solid var(--cf-border-hairline) !important;
+}
+
+.hairline-l {
+  border-left: 1px solid var(--cf-border-hairline) !important;
+}
+
+/* Tactile Buttons */
+.cf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--cf-font-mono);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 0.5rem 1rem;
+  border-radius: var(--cf-radius-none);
+  border: 1px solid var(--cf-ink-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  user-select: none;
+  min-height: 38px;
+}
+
+.cf-btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--cf-shadow-tactile);
+}
+
+.cf-btn:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+.cf-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.cf-btn-primary {
+  background-color: var(--cf-ink-primary);
+  color: var(--cf-ink-inverse);
+  border-color: var(--cf-ink-primary);
+}
+
+.cf-btn-primary:hover:not(:disabled) {
+  background-color: var(--cf-ink-secondary);
+  color: var(--cf-ink-inverse);
+}
+
+.cf-btn-secondary {
+  background-color: var(--cf-surface-canvas);
+  color: var(--cf-ink-primary);
+  border-color: var(--cf-border-strong);
+}
+
+.cf-btn-secondary:hover:not(:disabled) {
+  background-color: var(--cf-surface-deep);
+  border-color: var(--cf-ink-primary);
+  color: var(--cf-ink-primary);
+}
+
+.cf-btn-outline {
+  background-color: transparent;
+  color: var(--cf-ink-primary);
+  border-color: var(--cf-border-hairline);
+}
+
+.cf-btn-outline:hover:not(:disabled) {
+  background-color: var(--cf-surface-deep);
+  border-color: var(--cf-ink-primary);
+}
+
+.cf-btn-vermilion {
+  background-color: var(--cf-accent-vermilion);
+  color: #FFFFFF;
+  border-color: var(--cf-accent-vermilion);
+}
+
+.cf-btn-vermilion:hover:not(:disabled) {
+  background-color: #9A3412;
+  color: #FFFFFF;
+}
+
+.cf-btn-sm {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.6875rem;
+  min-height: 30px;
+}
+
+.cf-btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 0.9375rem;
+  min-height: 48px;
+}
+
+/* Badges & Telemetry Pills */
+.cf-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--cf-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--cf-radius-none);
+  border: 1px solid var(--cf-border-hairline);
+  background-color: var(--cf-surface-canvas);
+  color: var(--cf-ink-primary);
+  text-transform: uppercase;
+}
+
+.cf-badge-vermilion {
+  border-color: var(--cf-accent-vermilion);
+  color: var(--cf-accent-vermilion);
+  background-color: var(--cf-accent-vermilion-subtle);
+}
+
+.cf-badge-prussian {
+  border-color: var(--cf-accent-prussian);
+  color: var(--cf-accent-prussian);
+  background-color: var(--cf-accent-prussian-subtle);
+}
+
+.cf-badge-green {
+  border-color: var(--cf-accent-green);
+  color: var(--cf-accent-green);
+  background-color: var(--cf-accent-green-subtle);
+}
+
+.cf-badge-dark {
+  background-color: var(--cf-ink-primary);
+  color: var(--cf-ink-inverse);
+  border-color: var(--cf-ink-primary);
+}
+
+/* Architectural Panes / Cards */
+.cf-pane {
+  background-color: var(--cf-surface-white);
+  border: 1px solid var(--cf-border-hairline);
+  border-radius: var(--cf-radius-none);
+  display: flex;
+  flex-direction: column;
+}
+
+.cf-pane-tactile {
+  border: 1px solid var(--cf-ink-primary);
+  box-shadow: var(--cf-shadow-tactile);
+}
+
+.cf-pane-header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--cf-border-hairline);
+  background-color: var(--cf-surface-deep);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--cf-font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cf-pane-body {
+  padding: 1rem;
+  flex: 1;
+}
+
+/* Stat Blocks */
+.cf-stat-box {
+  padding: 1rem;
+  border: 1px solid var(--cf-border-hairline);
+  background-color: var(--cf-surface-white);
+}
+
+.cf-stat-value {
+  font-family: var(--cf-font-mono);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--cf-ink-primary);
+  line-height: 1.2;
+}
+
+.cf-stat-label {
+  font-family: var(--cf-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cf-ink-muted);
+  margin-top: 0.25rem;
+}
+
+/* Form Controls */
+.cf-label {
+  display: block;
+  font-family: var(--cf-font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cf-ink-primary);
+  margin-bottom: 0.35rem;
+}
+
+.cf-input,
+.cf-select,
+.cf-textarea {
+  width: 100%;
+  font-family: var(--cf-font-mono);
+  font-size: 0.8125rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--cf-border-strong);
+  border-radius: var(--cf-radius-none);
+  background-color: var(--cf-surface-canvas);
+  color: var(--cf-ink-primary);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.cf-input:focus,
+.cf-select:focus,
+.cf-textarea:focus {
+  outline: none;
+  border-color: var(--cf-ink-primary);
+  background-color: var(--cf-surface-white);
+  box-shadow: 0 0 0 1px var(--cf-ink-primary);
+}
+
+.cf-input::placeholder,
+.cf-textarea::placeholder {
+  color: var(--cf-ink-muted);
+}
+
+/* Empty States */
+.cf-empty-state {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  border: 1px dashed var(--cf-border-strong);
+  background-color: var(--cf-surface-canvas);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.cf-empty-icon {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--cf-ink-primary);
+  background-color: var(--cf-surface-deep);
+  margin-bottom: 1rem;
+  color: var(--cf-ink-primary);
+}
+
+.cf-empty-title {
+  font-family: var(--cf-font-serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--cf-ink-primary);
+  margin-bottom: 0.5rem;
+}
+
+.cf-empty-desc {
+  font-family: var(--cf-font-sans);
+  font-size: 0.875rem;
+  color: var(--cf-ink-muted);
+  max-width: 440px;
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+}
+
+/* Stamp Badge */
+.stamp-badge {
+  border: 1.5px dashed var(--cf-accent-vermilion);
+  color: var(--cf-accent-vermilion);
+  font-family: var(--cf-font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.5rem;
+  text-transform: uppercase;
+}
