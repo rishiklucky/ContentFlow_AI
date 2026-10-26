@@ -35,6 +35,10 @@ def get_engine():
     if not db_url:
         raise ValueError("DATABASE_URL is not configured in environment settings.")
 
+    # Normalize legacy postgres:// scheme to postgresql:// if needed
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+
     # Parse connection string to inspect host
     parsed = urllib.parse.urlparse(db_url)
     hostname = parsed.hostname
