@@ -1,171 +1,136 @@
 # ContentFlow AI
 
-> **AI-Powered Multi-Modal Content Transformation Platform** with Uncompromising Source Grounding & Fact Verification.
+> **AI-Powered Multi-Modal Content Transformation Platform** with Factual Source Grounding & Integrity Auditing.
+
+ContentFlow AI ingests complex source documents (PDFs, Word documents, research papers, earnings reports, web articles) and transforms them into customized multi-modal communication dossiers (Executive Briefings, LinkedIn Thought Leadership, Twitter/X Threads, Institutional Advisories, Slide Decks with Speaker Notes, Infographic Blueprints, and Video Storyboards) while enforcing verifiable factual consistency.
 
 ---
 
-## 1. Overview & Architecture
+## 1. Key Platform Features
 
-ContentFlow AI ingests complex source documents (PDFs, reports, earnings transcripts, whitepapers) and transforms them into customized multi-modal communication dossiers (Executive Briefings, LinkedIn Dispatches, Analyst Threads, Advisory Memos, Board Decks) while enforcing strict factual consistency and verifiable source grounding.
-
-- **Frontend**: React.js, Vite, Bootstrap 5, Custom CSS (Stitch "Kinetic Ledger" inspired design system), React Router, Axios, Lucide React.
-- **Backend**: Python 3.10+, FastAPI, Uvicorn, Pydantic v2, Pydantic-Settings.
-- **Database & Migrations**: Neon PostgreSQL, SQLAlchemy 2.x, Alembic (Configured for Phase 2).
-- **AI Engine**: Google Gemini API with supported SDK (Configured for Phase 3).
-
----
-
-## 2. Local Setup & Installation
-
-### Prerequisites
-- Node.js (v18+ or v24+) & `npm`
-- Python 3.10+ & `pip`
-
----
-
-### Backend Setup
-
-1. **Navigate to the backend directory:**
-   ```bash
-   cd backend
-   ```
-
-2. **(Optional) Create and activate a virtual environment:**
-   ```bash
-   python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
-   # On macOS/Linux:
-   source venv/bin/activate
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure environment:**
-   ```bash
-   cp .env.example .env
-   ```
-
-5. **Run the backend development server:**
-   ```bash
-   python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-   ```
-
-6. **Verify backend endpoints:**
-   - Health Check: `http://127.0.0.1:8000/api/v1/health`
-   - Interactive Docs: `http://127.0.0.1:8000/api/v1/docs`
+- **Multi-Modal Document Ingestion**: Ingests pasted text, public web URLs (with SSRF protection), and file uploads (.pdf, .docx, .txt, .png, .jpg) with automated text extraction and OCR.
+- **Structured Source Understanding**: Extracts key entities, chronological events, quantitative metrics, and claims before generation begins.
+- **7 Specialized Communication Formats**:
+  1. *Executive Summary*: Dense, high-impact C-Suite briefing.
+  2. *LinkedIn Thought Leadership*: Professional narrative dispatch with actionable insights.
+  3. *Twitter / X Thread Wire*: Numbered tweet sequence enforcing strict 280-character constraints.
+  4. *Institutional Advisory*: Board-level directive memo with risks and strategic recommendations.
+  5. *Presentation Deck*: Slide-by-slide structure with visual layout directives and verbatim speaker notes.
+  6. *Infographic Blueprint*: Section directives, visual metaphors, and focal statistics.
+  7. *Video Storyboard*: Production grid with scene timecodes, camera directions, and voiceover script.
+- **Two-Tiered Fact Grounding & Verification**:
+  - *Deterministic Layer*: Flags altered numerical figures, dates, and currency values.
+  - *Semantic Verification*: Google Gemini audits every claim into `supported`, `partially_supported`, `unsupported`, or `contradicts_source`.
+- **Project & Generation History**: Organize transformations into workspaces, search, rename, duplicate, and delete with ownership protection.
+- **Multi-Format Export Engine**: One-click Clipboard Copy, Markdown (`.md`), Plain Text (`.txt`), Word (`.docx`), JSON Data (`.json`), and Batch (`.zip`) archives.
+- **Single-Service Render Deployment**: Unified React SPA and FastAPI backend served on a single URL with Render free-tier cold-start handling.
 
 ---
 
-### Frontend Setup
+## 2. Technology Stack
 
-1. **Navigate to the frontend directory:**
-   ```bash
-   cd frontend
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Configure environment:**
-   ```bash
-   cp .env.example .env
-   ```
-
-4. **Run the frontend development server:**
-   ```bash
-   npm run dev
-   ```
-   Open `http://127.0.0.1:5173` in your browser.
-
-5. **Build for production:**
-   ```bash
-   npm run build
-   ```
+- **Frontend**: React.js 18, Vite, Bootstrap 5, Custom CSS ("Kinetic Ledger" Stitch design system), React Router, Axios, Lucide React.
+- **Backend**: Python 3.10+, FastAPI, Uvicorn, Pydantic v2, PyMuPDF, python-docx, Tesseract OCR, Pillow.
+- **Database**: Neon Serverless PostgreSQL with SQLAlchemy 2.0 ORM and Alembic migrations.
+- **AI Models**: Google Gemini API with priority capacity fallback chain (`gemini-3.8-flash` down to `gemini-3.5-flash-lite`).
+- **Deployment**: Render Web Service (Single-Service unified architecture).
 
 ---
 
-## 3. Testing & Verification
+## 3. Single-Service Deployment on Render
 
-### Run Backend Health Tests
+ContentFlow AI runs as **one unified Render Web Service**, serving both the production React SPA and the FastAPI API from a single public domain.
+
+### Render Setup:
+1. Connect your GitHub repository to [Render](https://render.com).
+2. Create a new **Web Service** or use the included [`render.yaml`](render.yaml) blueprint:
+   - **Environment**: `Python`
+   - **Build Command**: `chmod +x build.sh && ./build.sh`
+   - **Start Command**: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+3. Configure the following environment variables in Render Dashboard:
+   - `DATABASE_URL`: Your Neon PostgreSQL connection string (`postgresql://neondb_owner:...@...neon.tech/neondb?sslmode=require`).
+   - `GEMINI_API_KEY`: Your Google AI Studio API key.
+   - `SECRET_KEY`: A secure 32-byte secret string for JWT authentication.
+   - `ENVIRONMENT`: `production`
+   - `DEBUG`: `False`
+
+### Automated Build Pipeline (`build.sh`):
+1. Installs frontend dependencies and runs `npm run build` (outputs to `frontend/dist`).
+2. Installs backend Python dependencies from `requirements.txt`.
+3. Runs database migrations via `alembic upgrade head`.
+
+---
+
+## 4. Free-Tier Cold-Start Handling
+
+Render free-tier instances sleep after 15 minutes of inactivity. When a user arrives at a sleeping instance:
+1. The frontend checks the lightweight `/api/health` endpoint (which returns in under 15ms and does not invoke expensive AI models).
+2. If the backend is spinning up, the user sees a transparent status screen: **"Waking up ContentFlow AI"** with an elapsed timer and automated backoff retries.
+3. Once the server responds, the application transitions smoothly into the workspace without requiring full page refreshes.
+
+---
+
+## 5. Local Development Setup
+
+### Backend:
 ```bash
-python backend/tests/test_health.py
+cd backend
+python -m venv venv
+# Windows:
+venv\Scripts\activate
+# macOS/Linux:
+source venv/bin/activate
+
+pip install -r requirements.txt
+cp .env.example .env
+# Fill in your DATABASE_URL and GEMINI_API_KEY in .env
+
+# Apply database migrations
+alembic upgrade head
+
+# Start development server
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### Run Frontend Production Build Check
+### Frontend:
 ```bash
-cd frontend && npm run build
+cd frontend
+npm install
+npm run dev
+```
+Open `http://localhost:5173` in your browser.
+
+---
+
+## 6. Testing
+
+### Run All Backend Automated Tests:
+```bash
+cd backend
+python -m pytest tests/ -v
+```
+
+### Run Frontend Production Build Check:
+```bash
+cd frontend
+npm run build
 ```
 
 ---
 
-## 4. Repository Structure
+## 7. Documentation Index
 
-```
-ContentFlow_AI/
-├── .gitignore
-├── README.md
-├── project_rules.md
-├── common_instructions.txt
-├── backend/
-│   ├── .env.example
-│   ├── requirements.txt
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── core/
-│   │   │   └── config.py
-│   │   ├── schemas/
-│   │   │   ├── health.py
-│   │   │   ├── transformation.py
-│   │   │   └── project.py
-│   │   └── api/
-│   │       └── v1/
-│   │           ├── router.py
-│   │           └── endpoints/
-│   │               ├── health.py
-│   │               ├── transformations.py
-│   │               └── projects.py
-│   └── tests/
-│       └── test_health.py
-└── frontend/
-    ├── .env.example
-    ├── package.json
-    ├── vite.config.js
-    ├── index.html
-    └── src/
-        ├── App.jsx
-        ├── main.jsx
-        ├── services/
-        │   └── api.js
-        ├── styles/
-        │   ├── variables.css
-        │   ├── design-system.css
-        │   └── main.css
-        ├── components/
-        │   ├── common/
-        │   │   ├── Button.jsx
-        │   │   ├── Badge.jsx
-        │   │   ├── StatBox.jsx
-        │   │   ├── EmptyState.jsx
-        │   │   └── Pane.jsx
-        │   └── layout/
-        │       ├── AppShell.jsx
-        │       ├── Header.jsx
-        │       ├── Sidebar.jsx
-        │       ├── MobileSidebar.jsx
-        │       ├── TelemetryRuler.jsx
-        │       └── Footer.jsx
-        └── pages/
-            ├── LandingPage.jsx
-            ├── DashboardPage.jsx
-            ├── NewTransformationPage.jsx
-            ├── ProjectsPage.jsx
-            ├── HistoryPage.jsx
-            ├── SettingsPage.jsx
-            └── NotFoundPage.jsx
-```
+- [Architecture & Deployment Guide](docs/architecture.md)
+- [REST API Reference](docs/api.md)
+- [Testing & Verification Guide](docs/testing.md)
+- [Technical Presentation Outline (5 Slides)](docs/presentation_outline.md)
+- [Two-Minute Demo Script](docs/demo_plan.md)
+- [Future Export Enhancements Roadmap](Future_Enhancements/EXPORT_ENHANCEMENTS.md)
+
+---
+
+## 8. Known Limitations & Roadmap
+
+- **External Object Storage**: File uploads currently process in-memory or temporary storage for text extraction. Permanent file persistence across cold restarts requires configuring AWS S3 or Cloudflare R2 object storage.
+- **Native PDF & PPTX Generation**: Markdown, TXT, DOCX, and ZIP exports are fully functional. Direct vector PDF generation (via WeasyPrint) and PowerPoint deck downloads (`.pptx`) are documented in the [Future Export Enhancements Roadmap](Future_Enhancements/EXPORT_ENHANCEMENTS.md).
+- **Retrieval-Augmented Generation (RAG)**: ChromaDB vector retrieval for massive multi-document corpora is planned as a future scaling feature.

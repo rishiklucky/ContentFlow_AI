@@ -1,17 +1,18 @@
 import axios from 'axios';
 
 const getBaseUrl = () => {
-  const envUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
-  if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    try {
-      const parsed = new URL(envUrl);
-      parsed.hostname = window.location.hostname;
-      return parsed.toString().replace(/\/$/, '');
-    } catch {
-      return envUrl;
-    }
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '');
   }
-  return envUrl;
+  if (typeof window !== 'undefined') {
+    // If running in development Vite dev server (port 5173 or 3000)
+    if (window.location.port === '5173' || window.location.port === '3000') {
+      return `http://${window.location.hostname}:8000/api/v1`;
+    }
+    // Single-service production deployment (same origin on Render)
+    return '/api/v1';
+  }
+  return 'http://localhost:8000/api/v1';
 };
 
 const api = axios.create({
@@ -103,8 +104,14 @@ export const authService = {
 };
 
 export const systemService = {
-  checkHealth: async () => {
-    const res = await api.get('/health');
+  checkHealth: async (timeoutMs = 6000) => {
+    // Lightweight /api/health check for cold-start wakeups
+    const rootHealthUrl =
+      typeof window !== 'undefined' &&
+      (window.location.port === '5173' || window.location.port === '3000')
+        ? `http://${window.location.hostname}:8000/api/health`
+        : '/api/health';
+    const res = await axios.get(rootHealthUrl, { timeout: timeoutMs });
     return res.data;
   },
   getSystemInfo: async () => {
