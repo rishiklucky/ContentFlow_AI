@@ -20,10 +20,25 @@ import {
   Save,
   X,
   Layers,
+  ShieldCheck,
+  CheckCircle2,
+  Archive,
+  Eye,
+  FileDown,
 } from 'lucide-react';
 import { transformationService } from '../../services/api';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
+import FactGroundingReview from '../verification/FactGroundingReview';
+import ExportPreviewModal from './ExportPreviewModal';
+import {
+  formatExportFilename,
+  markdownToPlainText,
+  exportMarkdown,
+  exportPlainText,
+  downloadBlob,
+  copyToClipboard,
+} from '../../utils/exportUtils';
 
 const FORMAT_ICONS = {
   executive_summary: FileText,
@@ -55,11 +70,47 @@ export default function TransformationWorkspace({
   const [editedContent, setEditedContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [notification, setNotification] = useState({ message: '', type: 'success' });
+  const [verificationMap, setVerificationMap] = useState({});
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
+  const [showVerificationPanel, setShowVerificationPanel] = useState(true);
 
   const outputs = transformation?.outputs || [];
   const currentOutput = outputs[activeFormatIndex] || outputs[0] || null;
+
+  const activeVerification =
+    verificationMap[currentOutput?.id] ||
+    currentOutput?.verifications?.[0] ||
+    null;
+
+  const notifyUser = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification((prev) => (prev.message === message ? { message: '', type: 'success' } : prev));
+    }, 4000);
+  };
+
+  const handleRunVerification = async () => {
+    if (!currentOutput) return;
+    setIsVerifying(true);
+    setVerificationError('');
+    try {
+      const res = await transformationService.verifyOutput(
+        transformation.id,
+        currentOutput.id
+      );
+      setVerificationMap((prev) => ({ ...prev, [currentOutput.id]: res }));
+    } catch (err) {
+      setVerificationError(err.message || 'Fact verification check failed.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const handleStartEdit = () => {
     if (!currentOutput) return;
@@ -83,6 +134,7 @@ export default function TransformationWorkspace({
       const nextTrans = { ...transformation, outputs: nextOutputs };
       if (onTransformationUpdated) onTransformationUpdated(nextTrans);
       setIsEditing(false);
+      notifyUser('Edits saved successfully. Exports will contain this latest version.', 'success');
     } catch (err) {
       setErrorMessage(err.message || 'Failed to save changes.');
     } finally {
@@ -103,6 +155,7 @@ export default function TransformationWorkspace({
       const nextTrans = { ...transformation, outputs: nextOutputs };
       if (onTransformationUpdated) onTransformationUpdated(nextTrans);
       setIsEditing(false);
+      notifyUser('Output regenerated successfully.', 'success');
     } catch (err) {
       setErrorMessage(err.message || 'Failed to regenerate this output.');
     } finally {
@@ -110,26 +163,92 @@ export default function TransformationWorkspace({
     }
   };
 
-  const handleCopy = (text, key = 'main') => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+  const handleCopy = async (text, key = 'main', label = 'Content') => {
+    if (!text) {
+      notifyUser('No content available to copy.', 'danger');
+      return;
+    }
+    try {
+      await copyToClipboard(text);
+      setCopiedKey(key);
+      notifyUser(`${label} copied to clipboard!`, 'success');
+      setTimeout(() => setCopiedKey(null), 2500);
+    } catch (err) {
+      notifyUser(err.message || 'Failed to copy to clipboard.', 'danger');
+    }
   };
 
-  const handleDownload = (format = 'md') => {
-    if (!currentOutput) return;
-    const filename = `${currentOutput.format_type}_${new Date().toISOString().slice(0, 10)}.${format}`;
-    const blob = new Blob([currentOutput.content], {
-      type: format === 'md' ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const handleDownload = async (format = 'md') => {
+    if (!currentOutput || !currentOutput.content || currentOutput.status === 'failed') {
+      notifyUser('Cannot export an empty or failed output.', 'danger');
+      return;
+    }
+
+    const filename = formatExportFilename(transformation.title, currentOutput.format_type, format);
+
+    try {
+      if (format === 'md') {
+        exportMarkdown(currentOutput.content, filename);
+        notifyUser(`Downloaded ${filename} successfully.`, 'success');
+      } else if (format === 'txt') {
+        exportPlainText(currentOutput.content, filename);
+        notifyUser(`Downloaded ${filename} successfully.`, 'success');
+      } else if (format === 'json') {
+        const jsonPayload = {
+          transformation_id: transformation.id,
+          project_title: transformation.title,
+          output_id: currentOutput.id,
+          format_type: currentOutput.format_type,
+          title: currentOutput.title,
+          version: currentOutput.version,
+          status: currentOutput.status,
+          content: currentOutput.content,
+          structured_data: currentOutput.structured_data,
+          exported_at: new Date().toISOString(),
+        };
+        const blob = new Blob([JSON.stringify(jsonPayload, null, 2)], {
+          type: 'application/json;charset=utf-8',
+        });
+        downloadBlob(blob, filename);
+        notifyUser(`Downloaded ${filename} successfully.`, 'success');
+      } else if (format === 'docx') {
+        setIsExporting(true);
+        notifyUser('Generating Word (.docx) document...', 'success');
+        const res = await transformationService.exportOutput(
+          transformation.id,
+          currentOutput.id,
+          'docx'
+        );
+        downloadBlob(res.data, filename);
+        notifyUser(`Downloaded ${filename} successfully.`, 'success');
+      }
+    } catch (err) {
+      notifyUser(err.message || 'Export download failed.', 'danger');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleBatchExportZip = async () => {
+    if (!transformation) return;
+    const completedOutputs = outputs.filter((o) => o.status === 'completed' && o.content);
+    if (completedOutputs.length === 0) {
+      notifyUser('No completed outputs available to export.', 'danger');
+      return;
+    }
+
+    setIsExporting(true);
+    notifyUser('Preparing multi-format ZIP archive...', 'success');
+    try {
+      const res = await transformationService.exportAll(transformation.id);
+      const zipName = formatExportFilename(transformation.title, 'all_formats', '.zip');
+      downloadBlob(res.data, zipName);
+      notifyUser(`Downloaded ${zipName} successfully!`, 'success');
+    } catch (err) {
+      notifyUser(err.message || 'Batch ZIP export failed.', 'danger');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (!transformation || outputs.length === 0) {
@@ -159,11 +278,23 @@ export default function TransformationWorkspace({
           <h2 className="heading-display h5 mb-0 text-break">{transformation.title}</h2>
         </div>
 
-        {onBackToConfig && (
-          <Button variant="outline" size="sm" onClick={onBackToConfig}>
-            ← RECONFIGURE FORMATS
+        <div className="d-flex align-items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={Archive}
+            onClick={handleBatchExportZip}
+            disabled={isExporting}
+            title="Bundle all completed outputs into a downloadable ZIP archive"
+          >
+            {isExporting ? 'EXPORTING...' : 'EXPORT ALL (.ZIP)'}
           </Button>
-        )}
+          {onBackToConfig && (
+            <Button variant="outline" size="sm" onClick={onBackToConfig}>
+              ← RECONFIGURE FORMATS
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Responsive Format Tab Bar */}
@@ -210,6 +341,34 @@ export default function TransformationWorkspace({
       {/* Output Content Area */}
       {currentOutput && (
         <div className="p-3 p-md-4">
+          {/* User Notification Toast/Banner */}
+          {notification.message && (
+            <div
+              className={`p-2 p-md-3 mb-3 border d-flex align-items-center justify-content-between font-mono text-xs ${
+                notification.type === 'success'
+                  ? 'border-success bg-success-subtle text-success'
+                  : 'border-danger bg-danger-subtle text-danger'
+              }`}
+            >
+              <div className="d-flex align-items-center gap-2 text-break">
+                {notification.type === 'success' ? (
+                  <CheckCircle2 size={16} className="flex-shrink-0" />
+                ) : (
+                  <AlertTriangle size={16} className="flex-shrink-0" />
+                )}
+                <span>{notification.message}</span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm btn-link p-0 text-decoration-none text-current ms-2 flex-shrink-0"
+                onClick={() => setNotification({ message: '', type: 'success' })}
+                aria-label="Dismiss notification"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
           {/* Output Toolbar */}
           <div className="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3 pb-3 mb-3 hairline-b">
             <div className="d-flex align-items-center gap-2 flex-wrap">
@@ -258,11 +417,34 @@ export default function TransformationWorkspace({
                     variant="outline"
                     size="sm"
                     icon={copiedKey === 'main' ? Check : Copy}
-                    onClick={() => handleCopy(currentOutput.content, 'main')}
-                    disabled={!currentOutput.content}
-                    title="Copy full markdown content to clipboard"
+                    onClick={() => handleCopy(currentOutput.content, 'main', 'Output')}
+                    disabled={!currentOutput.content || currentOutput.status === 'failed'}
+                    title="Copy full content to clipboard"
                   >
                     {copiedKey === 'main' ? 'COPIED!' : 'COPY'}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={Eye}
+                    onClick={() => setIsPreviewOpen(true)}
+                    disabled={!currentOutput.content || currentOutput.status === 'failed'}
+                    title="Preview formatted Plain Text, Markdown, or JSON before downloading"
+                  >
+                    PREVIEW
+                  </Button>
+
+                  <Button
+                    variant={activeVerification ? (activeVerification.overall_grounding_score >= 0.85 ? 'outline' : 'outline') : 'primary'}
+                    size="sm"
+                    icon={ShieldCheck}
+                    onClick={() => setShowVerificationPanel((prev) => !prev)}
+                    title="Audit claims against source facts"
+                  >
+                    {activeVerification
+                      ? `${Math.round(activeVerification.overall_grounding_score * 100)}% GROUNDED`
+                      : 'AUDIT FACTS'}
                   </Button>
 
                   <div className="dropdown">
@@ -271,19 +453,45 @@ export default function TransformationWorkspace({
                       type="button"
                       data-bs-toggle="dropdown"
                       aria-expanded="false"
-                      disabled={!currentOutput.content}
+                      disabled={!currentOutput.content || currentOutput.status === 'failed' || isExporting}
                     >
-                      <Download size={13} /> EXPORT
+                      <Download size={13} /> {isExporting ? 'EXPORTING...' : 'EXPORT'}
                     </button>
                     <ul className="dropdown-menu rounded-0 shadow-sm font-mono text-xs">
                       <li>
-                        <button className="dropdown-item py-2" onClick={() => handleDownload('md')}>
-                          📄 Markdown (.md)
+                        <button className="dropdown-item py-2 d-flex align-items-center gap-2" onClick={() => setIsPreviewOpen(true)}>
+                          <span>👁️</span> <span>Preview & Formats...</span>
                         </button>
                       </li>
                       <li>
-                        <button className="dropdown-item py-2" onClick={() => handleDownload('txt')}>
-                          📝 Plain Text (.txt)
+                        <hr className="dropdown-divider my-1" />
+                      </li>
+                      <li>
+                        <button className="dropdown-item py-2 d-flex align-items-center gap-2" onClick={() => handleDownload('md')}>
+                          <span>📄</span> <span>Markdown (.md)</span>
+                        </button>
+                      </li>
+                      <li>
+                        <button className="dropdown-item py-2 d-flex align-items-center gap-2" onClick={() => handleDownload('txt')}>
+                          <span>📝</span> <span>Plain Text (.txt)</span>
+                        </button>
+                      </li>
+                      <li>
+                        <button className="dropdown-item py-2 d-flex align-items-center gap-2" onClick={() => handleDownload('docx')}>
+                          <span>📑</span> <span>Word Document (.docx)</span>
+                        </button>
+                      </li>
+                      <li>
+                        <button className="dropdown-item py-2 d-flex align-items-center gap-2" onClick={() => handleDownload('json')}>
+                          <span>⚙️</span> <span>JSON Data (.json)</span>
+                        </button>
+                      </li>
+                      <li>
+                        <hr className="dropdown-divider my-1" />
+                      </li>
+                      <li>
+                        <button className="dropdown-item py-2 d-flex align-items-center gap-2 text-primary" onClick={handleBatchExportZip}>
+                          <span>📦</span> <span>All Outputs (.zip)</span>
                         </button>
                       </li>
                     </ul>
@@ -313,6 +521,18 @@ export default function TransformationWorkspace({
               )}
             </div>
           </div>
+
+          {/* Fact Grounding & Source Consistency Inspector */}
+          {showVerificationPanel && (
+            <FactGroundingReview
+              verification={activeVerification}
+              isLoading={isVerifying}
+              error={verificationError}
+              onRunVerification={handleRunVerification}
+              onReverify={handleRunVerification}
+            />
+          )}
+
 
           {/* Error Message */}
           {errorMessage && (
@@ -541,6 +761,15 @@ export default function TransformationWorkspace({
           )}
         </div>
       )}
+
+      {/* Export & Format Preview Modal */}
+      <ExportPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        output={currentOutput}
+        transformationTitle={transformation?.title || 'Transformation'}
+        onNotify={notifyUser}
+      />
     </div>
   );
 }

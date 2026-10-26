@@ -14,6 +14,7 @@ class TransformationConfig(BaseModel):
 
 class TransformationCreate(BaseModel):
     source_id: str = Field(..., description="UUID of the ingested source document")
+    project_id: Optional[str] = Field(None, description="Optional UUID of the project workspace")
     title: Optional[str] = Field(None, description="Optional custom transformation title")
     selected_formats: List[str] = Field(
         ...,
@@ -28,9 +29,17 @@ class TransformationCreate(BaseModel):
     additional_instructions: Optional[str] = Field(None)
 
 
+class TransformationUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=255)
+    project_id: Optional[str] = Field(None)
+
+
 class TransformationOutputUpdate(BaseModel):
     content: str = Field(..., description="Edited output text content")
     title: Optional[str] = Field(None, description="Updated output title")
+
+
+from app.schemas.verification import OutputVerificationResponse
 
 
 class TransformationOutputResponse(BaseModel):
@@ -47,6 +56,7 @@ class TransformationOutputResponse(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+    verifications: List[OutputVerificationResponse] = []
 
 
 class TransformationResponse(BaseModel):
@@ -55,6 +65,7 @@ class TransformationResponse(BaseModel):
     id: str
     user_id: str
     source_id: str
+    project_id: Optional[str] = None
     title: str
     target_audience: str
     tone: str
@@ -74,11 +85,16 @@ class TransformationSummaryResponse(BaseModel):
 
     id: str
     source_id: str
+    source_title: Optional[str] = None
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
     title: str
     target_audience: str
     tone: str
     language: str
     status: str
+    selected_formats: List[str] = []
     output_count: int = 0
     created_at: datetime
     updated_at: datetime
+

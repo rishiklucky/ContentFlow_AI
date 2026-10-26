@@ -163,12 +163,20 @@ export const transformationService = {
     const res = await api.post('/transformations', data, { timeout: 180000 });
     return res.data;
   },
-  list: async () => {
-    const res = await api.get('/transformations');
+  list: async (params = {}) => {
+    const res = await api.get('/transformations', { params });
     return res.data;
   },
   get: async (id) => {
     const res = await api.get(`/transformations/${id}`);
+    return res.data;
+  },
+  update: async (id, data) => {
+    const res = await api.put(`/transformations/${id}`, data);
+    return res.data;
+  },
+  duplicate: async (id) => {
+    const res = await api.post(`/transformations/${id}/duplicate`);
     return res.data;
   },
   updateOutput: async (transformationId, outputId, data) => {
@@ -179,6 +187,27 @@ export const transformationService = {
     const res = await api.post(`/transformations/${transformationId}/outputs/${outputId}/regenerate`, {}, { timeout: 120000 });
     return res.data;
   },
+  verifyOutput: async (transformationId, outputId, payload = {}) => {
+    const res = await api.post(`/transformations/${transformationId}/outputs/${outputId}/verify`, payload, { timeout: 120000 });
+    return res.data;
+  },
+  getOutputVerification: async (transformationId, outputId) => {
+    const res = await api.get(`/transformations/${transformationId}/outputs/${outputId}/verification`);
+    return res.data;
+  },
+  exportOutput: async (transformationId, outputId, format = 'md') => {
+    const res = await api.get(`/transformations/${transformationId}/outputs/${outputId}/export`, {
+      params: { format },
+      responseType: 'blob',
+    });
+    return res;
+  },
+  exportAll: async (transformationId) => {
+    const res = await api.get(`/transformations/${transformationId}/export-all`, {
+      responseType: 'blob',
+    });
+    return res;
+  },
   delete: async (id) => {
     const res = await api.delete(`/transformations/${id}`);
     return res.data;
@@ -186,10 +215,42 @@ export const transformationService = {
 };
 
 export const projectService = {
-  list: async () => {
-    const res = await api.get('/projects');
+  list: async (params = {}) => {
+    const res = await api.get('/projects', { params });
+    return res.data;
+  },
+  get: async (id) => {
+    const res = await api.get(`/projects/${id}`);
+    return res.data;
+  },
+  create: async (data) => {
+    const res = await api.post('/projects', data);
+    return res.data;
+  },
+  update: async (id, data) => {
+    const res = await api.put(`/projects/${id}`, data);
+    return res.data;
+  },
+  duplicate: async (id) => {
+    const res = await api.post(`/projects/${id}/duplicate`);
+    return res.data;
+  },
+  delete: async (id) => {
+    const res = await api.delete(`/projects/${id}`);
+    return res.data;
+  },
+  assignTransformation: async (projectId, transformationId) => {
+    const res = await api.post(`/projects/${projectId}/transformations/${transformationId}`);
+    return res.data;
+  },
+};
+
+export const dashboardService = {
+  getMetrics: async () => {
+    const res = await api.get('/dashboard/metrics');
     return res.data;
   },
 };
 
 export default api;
+

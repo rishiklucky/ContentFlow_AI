@@ -8,7 +8,20 @@ from google.genai.errors import APIError, ClientError, ServerError
 
 from app.core.config import settings
 
-DEFAULT_MODELS = ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"]
+# Models prioritized by capacity and capability (highest capacity first down to lightweight fallbacks)
+DEFAULT_MODELS = [
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3-flash-preview",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
+]
+
 
 SUPPORTED_FORMATS = {
     "executive_summary": "Executive Summary",
