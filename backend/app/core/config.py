@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     # Optional / Future phase placeholders
     DATABASE_URL: str = ""
     GEMINI_API_KEY: str = ""
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
     SECRET_KEY: str = "dev-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours

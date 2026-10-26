@@ -27,7 +27,7 @@ export default function AuthCallbackPage() {
           localStorage.setItem('cf_auth_token', authToken);
           if (window.opener && !window.opener.closed) {
             try {
-              window.opener.postMessage({ type: 'NEON_AUTH_SUCCESS', token: authToken }, '*');
+              window.opener.postMessage({ type: 'GOOGLE_AUTH_SUCCESS', token: authToken }, '*');
               window.close();
               return;
             } catch {
@@ -71,7 +71,7 @@ export default function AuthCallbackPage() {
         throw new Error('Could not find active Google session. Please sign in again.');
       } catch (err) {
         if (isMounted) {
-          setError(err.message || 'Failed to complete Google authentication with Neon Auth.');
+          setError(err.message || 'Failed to complete Google authentication. Please try again.');
         }
       }
     }
@@ -104,7 +104,7 @@ export default function AuthCallbackPage() {
             </div>
             <h2 className="heading-display h5 mb-2">Authenticating with Google</h2>
             <div className="text-muted text-uppercase" style={{ fontSize: '11px', letterSpacing: '0.08em' }}>
-              CONNECTING WITH NEON AUTH...
+              VERIFYING CREDENTIALS WITH GOOGLE OAUTH...
             </div>
           </div>
         )}

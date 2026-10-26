@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.api.deps import get_current_user
@@ -101,7 +102,7 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
 @router.post("/social-login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 def social_login(social_in: SocialAuthRequest, db: Session = Depends(get_db)):
     """
-    Authenticate or create a user via Neon Auth Google OAuth.
+    Authenticate or create a user via Google OAuth.
     """
     import secrets
     normalized_email = social_in.email.strip().lower()
@@ -162,15 +163,13 @@ def get_neon_google_auth_url(
     callback_url: Optional[str] = None
 ):
     """
-    Obtains the Google OAuth initiation URL from Neon Auth server-to-server.
-    Routes callback through the backend endpoint /api/v1/auth/google/callback
-    dynamically adapted for both local development and production deployment.
+    Obtains the Google OAuth initiation URL.
+    Uses Direct Google OAuth 2.0 (accounts.google.com) if GOOGLE_CLIENT_ID is set,
+    with automatic Neon Auth fallback if credentials are not yet configured.
     """
-    import socket
-    import ssl
-    import json
     import urllib.parse
-    from app.core.database import _resolve_host_fallback
+    import secrets
+    import json
 
     server_origin = _get_server_origin(request)
 
@@ -182,9 +181,31 @@ def get_neon_google_auth_url(
     else:
         target_frontend = server_origin
 
-    # Construct the dynamic callback URL pointing to the active backend host
+    backend_callback = f"{server_origin}/api/v1/auth/google/callback"
+
+    # 1. Direct Google OAuth 2.0 (Zero Intermediaries, 100% Reliable)
+    if settings.GOOGLE_CLIENT_ID:
+        state_payload = json.dumps({"target_origin": target_frontend, "csrf": secrets.token_hex(16)})
+        encoded_state = urllib.parse.quote(state_payload)
+        google_params = {
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "redirect_uri": backend_callback,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "access_type": "offline",
+            "prompt": "select_account",
+            "state": encoded_state,
+        }
+        google_auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(google_params)}"
+        return {"url": google_auth_url}
+
+    # 2. Fallback to Neon Auth if GOOGLE_CLIENT_ID is not yet configured
+    import socket
+    import ssl
+    from app.core.database import _resolve_host_fallback
+
     target_encoded = urllib.parse.quote(target_frontend, safe="")
-    backend_callback = f"{server_origin}/api/v1/auth/google/callback?target_origin={target_encoded}"
+    neon_callback = f"{backend_callback}?target_origin={target_encoded}"
 
     neon_host = "ep-aged-frog-b3927eke.neonauth.c-4.ap-southeast-1.aws.neon.tech"
     ip = _resolve_host_fallback(neon_host) or "47.130.56.154"
@@ -194,7 +215,7 @@ def get_neon_google_auth_url(
         s = ctx.wrap_socket(socket.socket(), server_hostname=neon_host)
         s.connect((ip, 443))
 
-        payload = json.dumps({"provider": "google", "callbackURL": backend_callback}).encode("utf-8")
+        payload = json.dumps({"provider": "google", "callbackURL": neon_callback}).encode("utf-8")
         req = (
             f"POST /neondb/auth/sign-in/social HTTP/1.1\r\n"
             f"Host: {neon_host}\r\n"
@@ -210,10 +231,10 @@ def get_neon_google_auth_url(
 
         body = response[response.find("{"):]
         data = json.loads(body)
-        
+
         if "url" in data:
             return {"url": data["url"]}
-        
+
         err_msg = data.get("error") or data.get("message") or "Unknown error from Neon Auth"
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err_msg)
 
@@ -227,35 +248,140 @@ def get_neon_google_auth_url(
 
 
 @router.get("/google/callback")
-def google_oauth_callback(
+async def google_oauth_callback(
     request: Request,
+    code: Optional[str] = None,
+    state: Optional[str] = None,
     target_origin: Optional[str] = None,
     neon_auth_session_verifier: Optional[str] = None,
     error: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """
-    Handles the redirect from Neon Auth after Google authentication completes.
-    Reads user/session directly from neon_auth schema in PostgreSQL,
-    synchronizes with public.users table, issues a JWT token, and redirects
-    to frontend /auth/callback with the token.
+    Handles Google OAuth redirect for both Direct Google OAuth (via authorization code)
+    and Neon Auth (fallback).
+    Creates or updates the user, issues a JWT token, and redirects to frontend /auth/callback.
     """
     import secrets
     import urllib.parse
+    import json
 
     server_origin = _get_server_origin(request)
-    if target_origin:
+    frontend_base = server_origin
+
+    # Decode target_origin from state parameter if present
+    if state:
+        try:
+            state_unquoted = urllib.parse.unquote(state)
+            state_json = json.loads(state_unquoted)
+            if isinstance(state_json, dict) and state_json.get("target_origin"):
+                frontend_base = state_json["target_origin"].rstrip("/")
+        except Exception:
+            pass
+
+    if target_origin and frontend_base == server_origin:
         frontend_base = urllib.parse.unquote(target_origin).rstrip("/")
-    elif "localhost" in server_origin or "127.0.0.1" in server_origin:
+    elif ("localhost" in server_origin or "127.0.0.1" in server_origin) and frontend_base == server_origin:
         frontend_base = "http://localhost:5173"
-    else:
-        frontend_base = server_origin
 
     if error:
-        return RedirectResponse(url=f"{frontend_base}/login?error={urllib.parse.quote(error)}", status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(
+            url=f"{frontend_base}/login?error={urllib.parse.quote(error)}",
+            status_code=status.HTTP_302_FOUND
+        )
 
+    # PATH A: Direct Google OAuth 2.0 (Authorization Code exchange)
+    if code and settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
+        try:
+            import httpx
+            backend_callback = f"{server_origin}/api/v1/auth/google/callback"
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                token_resp = await client.post(
+                    "https://oauth2.googleapis.com/token",
+                    data={
+                        "code": code,
+                        "client_id": settings.GOOGLE_CLIENT_ID,
+                        "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                        "redirect_uri": backend_callback,
+                        "grant_type": "authorization_code",
+                    },
+                    headers={"Accept": "application/json"}
+                )
+
+                if token_resp.status_code != 200:
+                    err_text = token_resp.text
+                    return RedirectResponse(
+                        url=f"{frontend_base}/login?error={urllib.parse.quote('Google token exchange failed: ' + err_text)}",
+                        status_code=status.HTTP_302_FOUND
+                    )
+
+                tokens = token_resp.json()
+                access_token = tokens.get("access_token")
+
+                userinfo_resp = await client.get(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    headers={"Authorization": f"Bearer {access_token}"}
+                )
+
+                if userinfo_resp.status_code != 200:
+                    return RedirectResponse(
+                        url=f"{frontend_base}/login?error=Failed+to+retrieve+Google+profile",
+                        status_code=status.HTTP_302_FOUND
+                    )
+
+                profile = userinfo_resp.json()
+                email = profile.get("email")
+                full_name = profile.get("name")
+
+                if not email:
+                    return RedirectResponse(
+                        url=f"{frontend_base}/login?error=Google+account+email+not+provided",
+                        status_code=status.HTTP_302_FOUND
+                    )
+
+                normalized_email = email.strip().lower()
+                user = db.query(User).filter(User.email == normalized_email).first()
+
+                if not user:
+                    random_pwd = secrets.token_urlsafe(32)
+                    hashed_pwd = get_password_hash(random_pwd)
+                    user = User(
+                        email=normalized_email,
+                        full_name=full_name,
+                        hashed_password=hashed_pwd,
+                        is_active=True,
+                    )
+                    db.add(user)
+                    db.commit()
+                    db.refresh(user)
+                else:
+                    if not user.full_name and full_name:
+                        user.full_name = full_name
+                        db.commit()
+                        db.refresh(user)
+
+                if not user.is_active:
+                    return RedirectResponse(
+                        url=f"{frontend_base}/login?error=account_deactivated",
+                        status_code=status.HTTP_302_FOUND
+                    )
+
+                token = create_access_token(subject=user.id)
+                return RedirectResponse(
+                    url=f"{frontend_base}/auth/callback?token={token}",
+                    status_code=status.HTTP_302_FOUND
+                )
+
+        except Exception as e:
+            err_msg = urllib.parse.quote(str(e))
+            return RedirectResponse(
+                url=f"{frontend_base}/login?error={err_msg}",
+                status_code=status.HTTP_302_FOUND
+            )
+
+    # PATH B: Neon Auth fallback (session query)
     try:
-        # Fetch the latest active session from neon_auth schema
         sql = text("""
             SELECT 
                 s.id as session_id,
@@ -300,7 +426,6 @@ def google_oauth_callback(
         if not user.is_active:
             return RedirectResponse(url=f"{frontend_base}/login?error=account_deactivated", status_code=status.HTTP_302_FOUND)
 
-        # Generate JWT token
         token = create_access_token(subject=user.id)
         return RedirectResponse(url=f"{frontend_base}/auth/callback?token={token}", status_code=status.HTTP_302_FOUND)
 

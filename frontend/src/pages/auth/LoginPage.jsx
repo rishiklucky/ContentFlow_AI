@@ -97,7 +97,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Neon Auth Google Sign In Button */}
+            {/* Google OAuth Sign In Button */}
             <button
               type="button"
               onClick={async () => {
@@ -111,7 +111,7 @@ export default function LoginPage() {
                     }
                   });
                 } catch (err) {
-                  setErrorMessage(err.message || 'Google authentication with Neon Auth failed.');
+                  setErrorMessage(err.message || 'Google authentication failed. Please try again.');
                 } finally {
                   setIsSubmitting(false);
                 }

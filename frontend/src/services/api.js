@@ -83,7 +83,7 @@ export const authService = {
       params: { frontend_origin: origin },
     });
     if (!res.data?.url) {
-      throw new Error('No redirect URL returned by Neon Auth.');
+      throw new Error('No redirect URL returned by Google OAuth.');
     }
 
     const authUrl = res.data.url;
@@ -96,7 +96,7 @@ export const authService = {
 
     const popup = window.open(
       authUrl,
-      'neon_google_auth',
+      'google_oauth_login',
       `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no`
     );
 
@@ -109,7 +109,7 @@ export const authService = {
     // Await cross-window completion signal from AuthCallbackPage
     return new Promise((resolve) => {
       const messageHandler = (event) => {
-        if (event.data?.type === 'NEON_AUTH_SUCCESS' && event.data?.token) {
+        if ((event.data?.type === 'GOOGLE_AUTH_SUCCESS' || event.data?.type === 'NEON_AUTH_SUCCESS') && event.data?.token) {
           window.removeEventListener('message', messageHandler);
           clearInterval(pollTimer);
           if (onSuccess) {
@@ -133,6 +133,9 @@ export const authService = {
         }
       }, 800);
     });
+  },
+  initiateGoogleAuth: async (onSuccess) => {
+    return authService.initiateNeonGoogleAuth(onSuccess);
   },
   verifyNeonSession: async () => {
     const res = await api.post('/auth/google/verify-session');
