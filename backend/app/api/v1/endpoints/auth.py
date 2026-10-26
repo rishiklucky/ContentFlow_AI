@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -143,12 +143,28 @@ def social_login(social_in: SocialAuthRequest, db: Session = Depends(get_db)):
     )
 
 
+def _get_server_origin(request: Request) -> str:
+    """
+    Extract the server origin dynamically from incoming request headers,
+    correctly respecting reverse proxies (Render, Cloudflare, etc.).
+    """
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or "localhost:8000"
+    if host == "testserver" or not host:
+        return "http://localhost:8000"
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme or "http"
+    return f"{proto}://{host}".rstrip("/")
+
+
 @router.get("/google/url")
-def get_neon_google_auth_url(callback_url: Optional[str] = None):
+def get_neon_google_auth_url(
+    request: Request,
+    frontend_origin: Optional[str] = None,
+    callback_url: Optional[str] = None
+):
     """
     Obtains the Google OAuth initiation URL from Neon Auth server-to-server.
     Routes callback through the backend endpoint /api/v1/auth/google/callback
-    to bypass cross-domain cookie blocking in modern browsers.
+    dynamically adapted for both local development and production deployment.
     """
     import socket
     import ssl
@@ -156,8 +172,19 @@ def get_neon_google_auth_url(callback_url: Optional[str] = None):
     import urllib.parse
     from app.core.database import _resolve_host_fallback
 
-    # Use backend callback so that session is captured reliably server-side
-    backend_callback = "http://localhost:8000/api/v1/auth/google/callback"
+    server_origin = _get_server_origin(request)
+
+    # Determine target frontend base for post-auth redirect
+    if frontend_origin:
+        target_frontend = frontend_origin.rstrip("/")
+    elif "localhost" in server_origin or "127.0.0.1" in server_origin:
+        target_frontend = "http://localhost:5173"
+    else:
+        target_frontend = server_origin
+
+    # Construct the dynamic callback URL pointing to the active backend host
+    target_encoded = urllib.parse.quote(target_frontend, safe="")
+    backend_callback = f"{server_origin}/api/v1/auth/google/callback?target_origin={target_encoded}"
 
     neon_host = "ep-aged-frog-b3927eke.neonauth.c-4.ap-southeast-1.aws.neon.tech"
     ip = _resolve_host_fallback(neon_host) or "47.130.56.154"
@@ -201,6 +228,8 @@ def get_neon_google_auth_url(callback_url: Optional[str] = None):
 
 @router.get("/google/callback")
 def google_oauth_callback(
+    request: Request,
+    target_origin: Optional[str] = None,
     neon_auth_session_verifier: Optional[str] = None,
     error: Optional[str] = None,
     db: Session = Depends(get_db)
@@ -214,7 +243,13 @@ def google_oauth_callback(
     import secrets
     import urllib.parse
 
-    frontend_base = "http://localhost:5173"
+    server_origin = _get_server_origin(request)
+    if target_origin:
+        frontend_base = urllib.parse.unquote(target_origin).rstrip("/")
+    elif "localhost" in server_origin or "127.0.0.1" in server_origin:
+        frontend_base = "http://localhost:5173"
+    else:
+        frontend_base = server_origin
 
     if error:
         return RedirectResponse(url=f"{frontend_base}/login?error={urllib.parse.quote(error)}", status_code=status.HTTP_302_FOUND)
@@ -341,9 +376,9 @@ def verify_neon_session(db: Session = Depends(get_db)):
 
 
 @router.get("/google")
-def redirect_to_google():
+def redirect_to_google(request: Request, frontend_origin: Optional[str] = None):
     """
     Directly redirects the user's browser to the Google OAuth consent screen via Neon Auth.
     """
-    result = get_neon_google_auth_url()
+    result = get_neon_google_auth_url(request=request, frontend_origin=frontend_origin)
     return RedirectResponse(url=result["url"])

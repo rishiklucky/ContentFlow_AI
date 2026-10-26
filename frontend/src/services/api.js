@@ -78,7 +78,10 @@ export const authService = {
     return res.data;
   },
   initiateNeonGoogleAuth: async () => {
-    const res = await api.get('/auth/google/url');
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const res = await api.get('/auth/google/url', {
+      params: { frontend_origin: origin },
+    });
     if (res.data?.url) {
       window.location.href = res.data.url;
     } else {
