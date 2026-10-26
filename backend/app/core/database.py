@@ -10,23 +10,52 @@ from app.core.config import settings
 
 def _resolve_host_fallback(hostname: str) -> str:
     """
-    Attempt normal DNS resolution. If local router DNS blocks or fails,
-    query public DNS over HTTPS to find the real IP address.
+    Attempt normal DNS resolution. If local router or cloud container DNS blocks
+    or fails to resolve Neon pooled endpoints, query public DNS over HTTPS (DoH)
+    or fall back to the known project cluster IP.
     """
     try:
         socket.gethostbyname(hostname)
         return ""  # System DNS is functioning normally
     except Exception:
-        # Local DNS failed; query Google Public DNS over HTTPS
-        try:
-            url = f"https://dns.google/resolve?name={hostname}"
-            req = urllib.request.urlopen(url, timeout=3)
-            data = json.loads(req.read().decode())
+        pass
+
+    # Local DNS failed; query Google Public DNS over HTTPS
+    try:
+        import ssl
+        ctx = ssl._create_unverified_context()
+        req = urllib.request.Request(
+            f"https://dns.google/resolve?name={hostname}",
+            headers={"User-Agent": "Mozilla/5.0 ContentFlowAI/1.0"}
+        )
+        with urllib.request.urlopen(req, context=ctx, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
             for ans in data.get("Answer", []):
                 if ans.get("type") == 1:  # Type 1 = IPv4 A record
                     return ans.get("data")
-        except Exception:
-            pass
+    except Exception:
+        pass
+
+    # Fallback to Cloudflare DNS over HTTPS
+    try:
+        import ssl
+        ctx = ssl._create_unverified_context()
+        req = urllib.request.Request(
+            f"https://cloudflare-dns.com/dns-query?name={hostname}&type=A",
+            headers={"Accept": "application/dns-json", "User-Agent": "Mozilla/5.0 ContentFlowAI/1.0"}
+        )
+        with urllib.request.urlopen(req, context=ctx, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            for ans in data.get("Answer", []):
+                if ans.get("type") == 1:
+                    return ans.get("data")
+    except Exception:
+        pass
+
+    # Safety net: if this is the project's Neon database cluster, return known working IP
+    if "ep-aged-frog-b3927eke" in hostname:
+        return "52.76.246.190"
+
     return ""
 
 
@@ -34,6 +63,13 @@ def get_engine():
     db_url = settings.DATABASE_URL
     if not db_url:
         raise ValueError("DATABASE_URL is not configured in environment settings.")
+
+    # Guard against placeholder values copied from .env.example
+    if any(placeholder in db_url for placeholder in ["YOUR_PASSWORD", "ep-your-pooler", "ep-xxx"]):
+        raise ValueError(
+            "DATABASE_URL contains placeholder values ('YOUR_PASSWORD', 'ep-your-pooler', or 'ep-xxx'). "
+            "Please set your real Neon connection string in the Render Environment Variables tab."
+        )
 
     # Normalize legacy postgres:// scheme to postgresql:// if needed
     if db_url.startswith("postgres://"):
