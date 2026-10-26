@@ -98,9 +98,13 @@ export default function RegisterPage() {
                 try {
                   setErrorMessage('');
                   setIsSubmitting(true);
-                  await authService.initiateNeonGoogleAuth();
+                  await authService.initiateNeonGoogleAuth((token) => {
+                    login(token);
+                    navigate('/dashboard');
+                  });
                 } catch (err) {
                   setErrorMessage(err.message || 'Google authentication with Neon Auth failed.');
+                } finally {
                   setIsSubmitting(false);
                 }
               }}

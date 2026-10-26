@@ -77,16 +77,62 @@ export const authService = {
     const res = await api.post('/auth/social-login', data);
     return res.data;
   },
-  initiateNeonGoogleAuth: async () => {
+  initiateNeonGoogleAuth: async (onSuccess) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const res = await api.get('/auth/google/url', {
       params: { frontend_origin: origin },
     });
-    if (res.data?.url) {
-      window.location.href = res.data.url;
-    } else {
+    if (!res.data?.url) {
       throw new Error('No redirect URL returned by Neon Auth.');
     }
+
+    const authUrl = res.data.url;
+
+    // Center coordinates for standard OAuth popup window
+    const width = 520;
+    const height = 650;
+    const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
+    const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
+
+    const popup = window.open(
+      authUrl,
+      'neon_google_auth',
+      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no`
+    );
+
+    // If popup was blocked by browser security settings, fallback gracefully to full redirect
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      window.location.href = authUrl;
+      return;
+    }
+
+    // Await cross-window completion signal from AuthCallbackPage
+    return new Promise((resolve) => {
+      const messageHandler = (event) => {
+        if (event.data?.type === 'NEON_AUTH_SUCCESS' && event.data?.token) {
+          window.removeEventListener('message', messageHandler);
+          clearInterval(pollTimer);
+          if (onSuccess) {
+            onSuccess(event.data.token);
+          } else {
+            localStorage.setItem('cf_auth_token', event.data.token);
+            window.location.href = '/dashboard';
+          }
+          resolve(event.data.token);
+        }
+      };
+
+      window.addEventListener('message', messageHandler);
+
+      // Clean up listener if user closes the popup before completing login
+      const pollTimer = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(pollTimer);
+          window.removeEventListener('message', messageHandler);
+          resolve(null);
+        }
+      }, 800);
+    });
   },
   verifyNeonSession: async () => {
     const res = await api.post('/auth/google/verify-session');

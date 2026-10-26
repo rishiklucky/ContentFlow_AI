@@ -23,10 +23,23 @@ export default function AuthCallbackPage() {
           throw new Error(decodeURIComponent(urlError));
         }
 
+        const notifyAndRedirect = (authToken) => {
+          localStorage.setItem('cf_auth_token', authToken);
+          if (window.opener && !window.opener.closed) {
+            try {
+              window.opener.postMessage({ type: 'NEON_AUTH_SUCCESS', token: authToken }, '*');
+              window.close();
+              return;
+            } catch {
+              // In case opener is blocked, proceed with standard redirect
+            }
+          }
+          window.location.href = '/dashboard';
+        };
+
         // Path 1: Server-side redirect provided token directly
         if (token) {
-          localStorage.setItem('cf_auth_token', token);
-          window.location.href = '/dashboard';
+          notifyAndRedirect(token);
           return;
         }
 
@@ -34,8 +47,7 @@ export default function AuthCallbackPage() {
         try {
           const verifiedData = await authService.verifyNeonSession();
           if (verifiedData && verifiedData.access_token) {
-            localStorage.setItem('cf_auth_token', verifiedData.access_token);
-            window.location.href = '/dashboard';
+            notifyAndRedirect(verifiedData.access_token);
             return;
           }
         } catch (verifyErr) {
@@ -52,8 +64,7 @@ export default function AuthCallbackPage() {
             provider_account_id: sessionData.user.id,
           });
 
-          localStorage.setItem('cf_auth_token', backendData.access_token);
-          window.location.href = '/dashboard';
+          notifyAndRedirect(backendData.access_token);
           return;
         }
 
